@@ -1,0 +1,205 @@
+---
+title: "STA302 final project"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+dataframe<-read.csv("FP_dataset.csv",header=T)
+dataframe_sel<-dataframe[,-c(1:3)]
+set.seed(1004712965)
+sample<-sample.int(n=1508,size=1131,replace=F)
+train_set0<-dataframe_sel[sample,]
+test_set0<-dataframe_sel[-sample,]
+```
+
+```{r}
+model_test<-lm(ADM_RATE ~ .,data=train_set0)
+summary(model_test)
+```
+
+
+
+```{r}
+dataframe_sel2<-dataframe_sel[,-4]
+train_set<-dataframe_sel2[sample,]
+test_set<-dataframe_sel2[-sample,]
+```
+
+
+
+```{r,results="hide"}
+library(MASS)
+stepAIC(lm(ADM_RATE ~ 1, data=train_set), 
+        scope=list(upper=lm(ADM_RATE ~ ., data = train_set)), 
+        direction = "forward", k=2)
+```
+
+```{r,results="hide"}
+stepAIC(lm(ADM_RATE ~ ., data=train_set), 
+        scope=list(lower=lm(ADM_RATE ~ 1, data = train_set)), 
+        direction = "backward", k=2)
+```
+
+```{r,results="hide"}
+stepAIC(lm(ADM_RATE ~ 1, data=train_set), 
+        scope=list(upper=lm(ADM_RATE ~ ., data = train_set)), 
+        direction = "forward", k=log(nrow(train_set)))
+```
+
+```{r,results="hide"}
+stepAIC(lm(ADM_RATE ~ ., data=train_set), 
+        scope=list(lower=lm(ADM_RATE ~ 1, data = train_set)), 
+        direction = "backward", k=log(nrow(train_set)))
+```
+
+```{r,results="hide"}
+stepAIC(lm(ADM_RATE ~ ., data=train_set), direction = "both", k=2)
+```
+
+```{r,results="hide"}
+stepAIC(lm(ADM_RATE ~ ., data=train_set), direction = "both", k=log(nrow(train_set)))
+```
+
+```{r,results="hide"}
+model1<-lm(ADM_RATE ~ AVGFACSAL + CONTROL + POVERTY_RATE + 
+    PCT_BLACK + NUMBRANCH + FEMALE + COSTT4_A + PFTFAC + MD_FAMINC + 
+    PCT_GRAD_PROF + UNEMP_RATE + HSI + PCT_BORN_US, data = train_set)
+summary(model1)
+```
+
+```{r}
+model2<-lm(ADM_RATE ~ NUMBRANCH + CONTROL + TRIBAL + HSI + 
+    COSTT4_A + AVGFACSAL + PFTFAC + PAR_ED_PCT_1STGEN + FEMALE + 
+    MD_FAMINC + PCT_WHITE + PCT_BA + PCT_GRAD_PROF + POVERTY_RATE + 
+    UNEMP_RATE, data = train_set)
+summary(model2)
+```
+
+```{r}
+model3<-lm(ADM_RATE ~ AVGFACSAL + CONTROL + POVERTY_RATE + 
+    PCT_BLACK + NUMBRANCH + FEMALE + COSTT4_A, data = train_set)
+summary(model3)
+```
+
+```{r}
+model4<-lm(ADM_RATE ~ NUMBRANCH + HSI + COSTT4_A + AVGFACSAL + 
+    FEMALE + PCT_WHITE + POVERTY_RATE, data = train_set)
+summary(model4)
+```
+
+```{r}
+model5<-lm(ADM_RATE ~ NUMBRANCH +HSI + COSTT4_A + AVGFACSAL + 
+    FEMALE + PCT_WHITE + POVERTY_RATE, data = train_set)
+summary(model5)
+```
+
+
+```{r}
+select_criteria = function(model, n)
+{
+  SSres <- sum(model$residuals^2)
+  Rsq_adj <- summary(model)$adj.r.squared
+  p <- length(model$coefficients) - 1
+  AIC <- n*log(SSres/n) + 2*p
+  AICc <- AIC + (2*(p+2)*(p+3)/(n-p-1))
+  BIC <- n*log(SSres/n) + (p+2)*log(n)
+  res <- c(SSres, Rsq_adj, AIC, AICc, BIC,p)
+  names(res) <- c("SSres", "Rsq_adj", "AIC", "AIC_c", "BIC","p")
+  return(res)
+}
+n<-nrow(train_set)
+results<-rbind(select_criteria(model1,n),select_criteria(model2,n),select_criteria(model3,n),select_criteria(model4,n))
+results
+
+```
+
+```{r}
+plot(train_set$ADM_RATE ~ model1$fitted.values, xlab="Fitted Values", ylab="ADM_RATE")
+abline(a = 0, b = 1, lty=2)
+lines(lowess(model1$fitted.values, train_set$ADM_RATE))
+par(mfrow=c(2,3))
+plot(rstandard(model1) ~ fitted(model1), xlab="Fitted", ylab="Residuals")
+plot(rstandard(model1) ~ train_set$NUMBRANCH, xlab="Temperature", ylab="Residuals")
+
+```
+```{r,message = FALSE}
+install.packages("car")
+library(car)
+```
+
+```{r,message = FALSE }
+install.packages("tidyverse")
+library(tidyverse)
+```
+
+```{r}
+new_data<-train_set%>%
+    filter(ADM_RATE>0)
+multi_mod <- lm(cbind(new_data$ADM_RATE, new_data$AVGFACSAL,new_data$CONTROL,new_data$POVERTY_RATE,new_data$PCT_BLACK,new_data$NUMBRANCH,new_data$FEMALE,new_data$COSTT4_A) ~ 1, data=new_data)
+bc <- powerTransform(multi_mod)
+summary(bc)
+
+
+```
+
+```{r}
+modelt<-lm(ADM_RATE~ AVGFACSAL + I(log(CONTROL)) + POVERTY_RATE + 
+    I(log(PCT_BLACK)) + I(NUMBRANCH^-6) + I(FEMALE^1.5) + COSTT4_A, data = new_data)
+summary(modelt)
+```
+
+```{r}
+plot(new_data$ADM_RATE ~ modelt$fitted.values, xlab="Fitted Values", ylab="ADM_RATE")
+
+```
+```{r}
+model_3c<-lm(ADM_RATE ~ AVGFACSAL + CONTROL + POVERTY_RATE +
+I(NUMBRANCH^-6) + PCT_BLACK + FEMALE + COSTT4_A , data = train_set)
+summary(model_3c)
+```
+
+
+
+```{r}
+h <- hatvalues(model_3c)
+threshold <- 2 * (length(model_3c$coefficients)/nrow(train_set))
+
+w <- which(h > threshold)
+length(w)
+```
+
+```{r}
+r <- rstandard(model_3c)
+which(r>=4|r<=-4)
+
+D <- cooks.distance(model_3c)
+cutoff <- qf(0.5, 8, 754-8, lower.tail=T)
+which(D > cutoff)
+
+fits <- dffits(model_3c)
+cutoff <- 2*sqrt(8/754)
+which(abs(fits) > cutoff)
+```
+
+```{r}
+dfb <- dfbetas(model_3c)
+cutoff <- 2/sqrt(754)
+which(abs(dfb[,2]) > cutoff)
+```
+
+```{r}
+train_set1<-train_set[-c(746,740,721,633,300,242,207,83,441,56,174,471,405,703),]
+```
+
+```{r}
+model_f<-lm(ADM_RATE ~ AVGFACSAL + CONTROL + POVERTY_RATE +
+I(NUMBRANCH^-6) + PCT_BLACK + FEMALE + COSTT4_A, data = train_set1)
+summary(model_f)
+```
+
